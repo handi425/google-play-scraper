@@ -173,6 +173,9 @@ class MySQLGameDatabase {
       const score = gameData.score ? Math.min(parseFloat(gameData.score), 9.99) : null;
       const price = gameData.price ? parseFloat(gameData.price) : 0;
 
+      // Helper function to convert undefined to null
+      const toNull = (value) => value === undefined ? null : value;
+
       const [result] = await connection.execute(`
         INSERT INTO games (
           app_id, title, developer_id, category_id, genre, summary,
@@ -185,15 +188,15 @@ class MySQLGameDatabase {
           play_pass, data_hash
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        gameData.appId, gameData.title, developerId, categoryId, gameData.genre,
-        gameData.summary, descriptionHash, gameData.icon, gameData.headerImage,
-        gameData.video, gameData.contentRating, gameData.free, price,
-        gameData.currency, gameData.priceText, score, gameData.scoreText,
-        gameData.ratings, gameData.reviews, gameData.installs, gameData.minInstalls,
-        gameData.maxInstalls, gameData.androidVersion, gameData.version,
-        releasedDate, gameData.updated, gameData.offersIAP, gameData.IAPRange,
-        gameData.adSupported, gameData.available, gameData.preregister,
-        gameData.earlyAccessEnabled, gameData.isAvailableInPlayPass, dataHash
+        toNull(gameData.appId), toNull(gameData.title), developerId, categoryId, toNull(gameData.genre),
+        toNull(gameData.summary), descriptionHash, toNull(gameData.icon), toNull(gameData.headerImage),
+        toNull(gameData.video), toNull(gameData.contentRating), toNull(gameData.free), price,
+        toNull(gameData.currency), toNull(gameData.priceText), score, toNull(gameData.scoreText),
+        toNull(gameData.ratings), toNull(gameData.reviews), toNull(gameData.installs), toNull(gameData.minInstalls),
+        toNull(gameData.maxInstalls), toNull(gameData.androidVersion), toNull(gameData.version),
+        releasedDate, toNull(gameData.updated), toNull(gameData.offersIAP), toNull(gameData.IAPRange),
+        toNull(gameData.adSupported), toNull(gameData.available), toNull(gameData.preregister),
+        toNull(gameData.earlyAccessEnabled), toNull(gameData.isAvailableInPlayPass), dataHash
       ]);
 
       const gameId = result.insertId;
@@ -202,7 +205,7 @@ class MySQLGameDatabase {
       if (gameData.description || gameData.recentChanges) {
         await connection.execute(
           'INSERT INTO game_descriptions (game_id, description, recent_changes) VALUES (?, ?, ?)',
-          [gameId, gameData.description, gameData.recentChanges]
+          [gameId, toNull(gameData.description), toNull(gameData.recentChanges)]
         );
       }
 
@@ -211,7 +214,7 @@ class MySQLGameDatabase {
         for (let i = 0; i < gameData.screenshots.length; i++) {
           await connection.execute(
             'INSERT INTO game_screenshots (game_id, screenshot_url, position) VALUES (?, ?, ?)',
-            [gameId, gameData.screenshots[i], i]
+            [gameId, toNull(gameData.screenshots[i]), i]
           );
         }
       }
@@ -327,11 +330,14 @@ class MySQLGameDatabase {
 
   // Simpan data historis
   async saveHistoricalData(gameId, gameData, connection) {
+    // Helper function to convert undefined to null
+    const toNull = (value) => value === undefined ? null : value;
+    
     // Simpan history harga jika ada
     if (gameData.price !== undefined) {
       await connection.execute(
         'INSERT INTO price_history (game_id, price, currency, price_text, original_price) VALUES (?, ?, ?, ?, ?)',
-        [gameId, gameData.price, gameData.currency, gameData.priceText, gameData.originalPrice]
+        [gameId, toNull(gameData.price), toNull(gameData.currency), toNull(gameData.priceText), toNull(gameData.originalPrice)]
       );
     }
 
@@ -339,7 +345,7 @@ class MySQLGameDatabase {
     if (gameData.score !== undefined) {
       await connection.execute(
         'INSERT INTO rating_history (game_id, score, score_text, ratings, reviews) VALUES (?, ?, ?, ?, ?)',
-        [gameId, gameData.score, gameData.scoreText, gameData.ratings, gameData.reviews]
+        [gameId, toNull(gameData.score), toNull(gameData.scoreText), toNull(gameData.ratings), toNull(gameData.reviews)]
       );
     }
 
@@ -347,7 +353,7 @@ class MySQLGameDatabase {
     if (gameData.minInstalls !== undefined) {
       await connection.execute(
         'INSERT INTO install_history (game_id, min_installs, max_installs, installs_text) VALUES (?, ?, ?, ?)',
-        [gameId, gameData.minInstalls, gameData.maxInstalls, gameData.installs]
+        [gameId, toNull(gameData.minInstalls), toNull(gameData.maxInstalls), toNull(gameData.installs)]
       );
     }
   }
