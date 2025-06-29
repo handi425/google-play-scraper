@@ -4,6 +4,9 @@
   "description": "scrapes app data from google play store",
   "type": "module",
   "exports": "./index.js",
+  "bin": {
+    "gplay-games": "./cli.js"
+  },
   "scripts": {
     "test": "mocha --timeout 5000",
     "lint": "eslint ."
@@ -25,10 +28,14 @@
   "homepage": "https://github.com/facundoolano/google-play-scraper",
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
+    "commander": "^11.1.0",
     "debug": "^3.1.0",
     "got": "^11.8.6",
     "memoizee": "^0.4.14",
+    "node-cron": "^3.0.3",
     "ramda": "^0.29.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.6",
     "tough-cookie": "^4.1.3"
   },
   "devDependencies": {
