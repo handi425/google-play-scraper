@@ -9,7 +9,13 @@
   },
   "scripts": {
     "test": "mocha --timeout 5000",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "start": "node server.js",
+    "start:production": "NODE_ENV=production node server.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop gplay-api",
+    "pm2:restart": "pm2 restart gplay-api",
+    "pm2:logs": "pm2 logs gplay-api"
   },
   "repository": {
     "type": "git",
@@ -30,8 +36,10 @@
     "cheerio": "^1.0.0-rc.12",
     "commander": "^11.1.0",
     "debug": "^3.1.0",
+    "dotenv": "^16.3.1",
     "got": "^11.8.6",
     "memoizee": "^0.4.14",
+    "mysql2": "^3.6.5",
     "node-cron": "^3.0.3",
     "ramda": "^0.29.0",
     "sqlite": "^5.1.1",
