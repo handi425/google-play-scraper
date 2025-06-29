@@ -4,7 +4,7 @@
 Upload semua file project ke server menggunakan FTP/SFTP:
 - Host: tazen.id atau 82.29.166.20
 - Username: tazen-aso
-- Path: /home/tazen-aso/htdocs/aso.tazen.id/gp
+- Path: /home/tazen-aso/htdocs/aso.tazen.id/api
 
 ## 2. Koneksi SSH ke Server
 ```bash
@@ -21,14 +21,14 @@ Database sudah disiapkan di CloudPanel:
 
 Jalankan schema MySQL:
 ```bash
-cd /home/tazen-aso/htdocs/aso.tazen.id/gp
+cd /home/tazen-aso/htdocs/aso.tazen.id/api
 mysql -u handi45 -p gplay < database/mysql-schema.sql
 # Masukkan password: SAyang45@@
 ```
 
 ## 4. Install Dependencies
 ```bash
-cd /home/tazen-aso/htdocs/aso.tazen.id/gp
+cd /home/tazen-aso/htdocs/aso.tazen.id/api
 npm install
 ```
 
@@ -82,7 +82,7 @@ tail -f /home/tazen-aso/logs/access.log
 ## 9. Update Aplikasi
 Untuk update aplikasi di masa depan:
 ```bash
-cd /home/tazen-aso/htdocs/aso.tazen.id/gp
+cd /home/tazen-aso/htdocs/aso.tazen.id/api
 git pull # jika menggunakan git
 npm install # jika ada dependency baru
 pm2 restart gplay-api

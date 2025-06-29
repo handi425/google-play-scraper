@@ -1,11 +1,10 @@
-import express from 'express';
-import gplay from './index.js';
-import DatabaseFactory from './database/db-factory.js';
-import dotenv from 'dotenv';
+const express = require('express');
+const dotenv = require('dotenv');
+const path = require('path');
 
 // Load environment variables
 if (process.env.NODE_ENV === 'production') {
-  dotenv.config({ path: '.env.production' });
+  dotenv.config({ path: path.join(__dirname, '.env.production') });
 } else {
   dotenv.config();
 }
@@ -13,8 +12,24 @@ if (process.env.NODE_ENV === 'production') {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Dynamic import untuk gplay (ES6 module)
+let gplay;
+
+async function initializeGplay() {
+  try {
+    gplay = await import('./index.js');
+    console.log('Google Play scraper module loaded successfully');
+  } catch (error) {
+    console.error('Failed to load gplay module:', error);
+  }
+}
+
+// Initialize gplay module
+initializeGplay();
+
 // Middleware
 app.use(express.json());
+app.use(express.static('public'));
 
 // Enable CORS
 app.use((req, res, next) => {
@@ -24,60 +39,66 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize database
-let db;
-DatabaseFactory.create().then(database => {
-  db = database;
-  console.log('Database connected successfully');
-}).catch(err => {
-  console.error('Failed to connect to database:', err);
-});
+// Middleware to check if gplay is loaded
+const checkGplay = (req, res, next) => {
+  if (!gplay) {
+    return res.status(503).json({ error: 'Google Play scraper module not loaded yet. Please try again.' });
+  }
+  next();
+};
 
 // Routes
 app.get('/', (req, res) => {
   res.json({
     message: 'Google Play Games API',
     version: '1.0.0',
+    status: gplay ? 'ready' : 'initializing',
     endpoints: {
-      apps: '/api/apps',
-      developers: '/api/developers',
+      apps: '/api/apps/:appId',
+      developers: '/api/developers/:devId',
       categories: '/api/categories',
-      search: '/api/search',
-      database: {
-        stats: '/api/db/stats',
-        games: '/api/db/games'
-      }
+      search: '/api/search?term=xxx',
+      list: '/api/list?category=GAME&collection=TOP_FREE'
     }
   });
 });
 
-// Redirect /api to root
+// Redirect /api to show available endpoints
 app.get('/api', (req, res) => {
+  const baseUrl = process.env.API_BASE_URL || `https://${req.get('host')}`;
   res.json({
-    apps: `${process.env.API_BASE_URL || `http://localhost:${PORT}`}/api/apps`,
-    developers: `${process.env.API_BASE_URL || `http://localhost:${PORT}`}/api/developers`,
-    categories: `${process.env.API_BASE_URL || `http://localhost:${PORT}`}/api/categories`
+    apps: `${baseUrl}/api/apps/com.whatsapp`,
+    search: `${baseUrl}/api/search?term=whatsapp`,
+    categories: `${baseUrl}/api/categories`,
+    list: `${baseUrl}/api/list`,
+    developers: `${baseUrl}/api/developers/5700313618786177705`,
+    dashboard: `${baseUrl}/dashboard.html`,
+    database: {
+      stats: `${baseUrl}/api/db/stats`,
+      games: `${baseUrl}/api/db/games`
+    },
+    scraper: {
+      start: `POST ${baseUrl}/api/scraper/start`,
+      trending: `POST ${baseUrl}/api/scraper/trending`,
+      category: `POST ${baseUrl}/api/scraper/category/:category`,
+      logs: `${baseUrl}/api/scraper/logs`
+    }
   });
 });
 
 // Get app details
-app.get('/api/apps/:appId', async (req, res) => {
+app.get('/api/apps/:appId', checkGplay, async (req, res) => {
   try {
-    const result = await gplay.app({ appId: req.params.appId });
-    
-    // Save to database if available
-    if (db) {
-      await db.processGameData(result);
-    }
-    
+    const result = await gplay.default.app({ appId: req.params.appId });
     res.json(result);
   } catch (error) {
+    console.error('Error fetching app:', error);
     res.status(404).json({ error: error.message });
   }
 });
 
 // Search apps
-app.get('/api/search', async (req, res) => {
+app.get('/api/search', checkGplay, async (req, res) => {
   try {
     const { term, num = 30, price = 'all', country = 'us', lang = 'en' } = req.query;
     
@@ -85,7 +106,7 @@ app.get('/api/search', async (req, res) => {
       return res.status(400).json({ error: 'Search term is required' });
     }
     
-    const result = await gplay.search({
+    const result = await gplay.default.search({
       term,
       num: parseInt(num),
       price: price === 'free' ? 'free' : price === 'paid' ? 'paid' : 'all',
@@ -95,16 +116,17 @@ app.get('/api/search', async (req, res) => {
     
     res.json(result);
   } catch (error) {
+    console.error('Error searching apps:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // List apps by category/collection
-app.get('/api/list', async (req, res) => {
+app.get('/api/list', checkGplay, async (req, res) => {
   try {
     const { 
       category = 'GAME', 
-      collection = gplay.collection.TOP_FREE,
+      collection = 'TOP_FREE',
       num = 50,
       country = 'us',
       lang = 'en',
@@ -113,7 +135,7 @@ app.get('/api/list', async (req, res) => {
     
     const options = {
       category,
-      collection,
+      collection: gplay.default.collection[collection] || gplay.default.collection.TOP_FREE,
       num: parseInt(num),
       country,
       lang
@@ -121,109 +143,129 @@ app.get('/api/list', async (req, res) => {
     
     if (age) options.age = parseInt(age);
     
-    const result = await gplay.list(options);
+    const result = await gplay.default.list(options);
     res.json(result);
   } catch (error) {
+    console.error('Error listing apps:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Get developer apps
-app.get('/api/developers/:devId', async (req, res) => {
+app.get('/api/developers/:devId', checkGplay, async (req, res) => {
   try {
-    const result = await gplay.developer({
+    const result = await gplay.default.developer({
       devId: req.params.devId,
       num: parseInt(req.query.num) || 60
     });
     res.json(result);
   } catch (error) {
+    console.error('Error fetching developer apps:', error);
     res.status(404).json({ error: error.message });
   }
 });
 
 // Get similar apps
-app.get('/api/similar/:appId', async (req, res) => {
+app.get('/api/similar/:appId', checkGplay, async (req, res) => {
   try {
-    const result = await gplay.similar({
+    const result = await gplay.default.similar({
       appId: req.params.appId
     });
     res.json(result);
   } catch (error) {
+    console.error('Error fetching similar apps:', error);
     res.status(404).json({ error: error.message });
   }
 });
 
 // Get app permissions
-app.get('/api/permissions/:appId', async (req, res) => {
+app.get('/api/permissions/:appId', checkGplay, async (req, res) => {
   try {
-    const result = await gplay.permissions({
+    const result = await gplay.default.permissions({
       appId: req.params.appId,
       lang: req.query.lang || 'en'
     });
     res.json(result);
   } catch (error) {
+    console.error('Error fetching permissions:', error);
     res.status(404).json({ error: error.message });
   }
 });
 
 // Get app reviews
-app.get('/api/reviews/:appId', async (req, res) => {
+app.get('/api/reviews/:appId', checkGplay, async (req, res) => {
   try {
-    const result = await gplay.reviews({
+    const result = await gplay.default.reviews({
       appId: req.params.appId,
-      sort: parseInt(req.query.sort) || gplay.sort.NEWEST,
+      sort: parseInt(req.query.sort) || gplay.default.sort.NEWEST,
       num: parseInt(req.query.num) || 40,
       lang: req.query.lang || 'en',
       country: req.query.country || 'us'
     });
     res.json(result);
   } catch (error) {
+    console.error('Error fetching reviews:', error);
     res.status(404).json({ error: error.message });
   }
 });
 
 // Categories endpoint
-app.get('/api/categories', (req, res) => {
+app.get('/api/categories', checkGplay, (req, res) => {
+  try {
+    res.json({
+      categories: Object.keys(gplay.default.category).map(key => ({
+        id: key,
+        value: gplay.default.category[key]
+      })),
+      collections: Object.keys(gplay.default.collection).map(key => ({
+        id: key,
+        value: gplay.default.collection[key]
+      })),
+      sort: Object.keys(gplay.default.sort).map(key => ({
+        id: key,
+        value: gplay.default.sort[key]
+      })),
+      age: Object.keys(gplay.default.age).map(key => ({
+        id: key,
+        value: gplay.default.age[key]
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
   res.json({
-    categories: Object.keys(gplay.category).map(key => ({
-      id: key,
-      value: gplay.category[key]
-    })),
-    collections: Object.keys(gplay.collection).map(key => ({
-      id: key,
-      value: gplay.collection[key]
-    })),
-    sort: Object.keys(gplay.sort).map(key => ({
-      id: key,
-      value: gplay.sort[key]
-    })),
-    age: Object.keys(gplay.age).map(key => ({
-      id: key,
-      value: gplay.age[key]
-    }))
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    gplayLoaded: !!gplay,
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// Database endpoints
+// Database endpoints - moved earlier for better organization
 app.get('/api/db/stats', async (req, res) => {
-  if (!db) {
-    return res.status(503).json({ error: 'Database not available' });
-  }
-  
   try {
+    const { default: DatabaseFactory } = await import('./database/db-factory.js');
+    const db = await DatabaseFactory.create();
     const stats = await db.getStats();
+    await db.close();
     res.json(stats);
   } catch (error) {
+    console.error('Error getting database stats:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 app.get('/api/db/games', async (req, res) => {
-  if (!db) {
-    return res.status(503).json({ error: 'Database not available' });
-  }
-  
   try {
+    const { default: DatabaseFactory } = await import('./database/db-factory.js');
+    const db = await DatabaseFactory.create();
+    
     const filters = {
       category: req.query.category,
       free: req.query.free === 'true' ? true : req.query.free === 'false' ? false : undefined,
@@ -232,8 +274,99 @@ app.get('/api/db/games', async (req, res) => {
     };
     
     const games = await db.getGames(filters);
+    await db.close();
     res.json(games);
   } catch (error) {
+    console.error('Error getting games from database:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Scraper management endpoints
+app.post('/api/scraper/start', async (req, res) => {
+  try {
+    const { default: AutoScraper } = await import('./scraper/auto-scraper.js');
+    const scraper = new AutoScraper();
+    await scraper.init();
+    
+    // Start scraping in background
+    scraper.scrapeAllCategories().catch(err => {
+      console.error('Scraping error:', err);
+    });
+    
+    res.json({
+      message: 'Scraping started successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error starting scraper:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/scraper/trending', async (req, res) => {
+  try {
+    const { default: AutoScraper } = await import('./scraper/auto-scraper.js');
+    const scraper = new AutoScraper();
+    await scraper.init();
+    
+    // Start trending scraping in background
+    scraper.scrapeTrendingApps().catch(err => {
+      console.error('Trending scraping error:', err);
+    });
+    
+    res.json({
+      message: 'Trending apps scraping started',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error starting trending scraper:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/scraper/category/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    const { collection = 'TOP_FREE', num = 50 } = req.query;
+    
+    const { default: AutoScraper } = await import('./scraper/auto-scraper.js');
+    const scraper = new AutoScraper();
+    await scraper.init();
+    
+    // Start category scraping in background
+    scraper.scrapeCategory(category, collection, parseInt(num)).catch(err => {
+      console.error('Category scraping error:', err);
+    });
+    
+    res.json({
+      message: `Scraping started for category: ${category}/${collection}`,
+      category,
+      collection,
+      maxApps: parseInt(num),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error starting category scraper:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/scraper/logs', async (req, res) => {
+  try {
+    const { default: DatabaseFactory } = await import('./database/db-factory.js');
+    const db = await DatabaseFactory.create();
+    
+    const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+    const [rows] = await db.pool.execute(
+      'SELECT * FROM scraping_logs ORDER BY started_at DESC LIMIT ?',
+      [limit]
+    );
+    
+    await db.close();
+    res.json(rows);
+  } catch (error) {
+    console.error('Error getting scraper logs:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -245,19 +378,17 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`API available at: ${process.env.API_BASE_URL || `http://localhost:${PORT}`}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 API available at: ${process.env.API_BASE_URL || `http://localhost:${PORT}`}`);
+  console.log(`📊 Health check: ${process.env.API_BASE_URL || `http://localhost:${PORT}`}/health`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM signal received: closing HTTP server');
-  if (db) {
-    await db.close();
-  }
   process.exit(0);
 });
 
-export default app;
+module.exports = app;
