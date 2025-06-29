@@ -2,7 +2,6 @@
   "name": "google-play-scraper",
   "version": "10.0.1",
   "description": "scrapes app data from google play store",
-  "type": "module",
   "exports": "./index.js",
   "bin": {
     "gplay-games": "./cli.js"
@@ -37,6 +36,7 @@
     "commander": "^11.1.0",
     "debug": "^3.1.0",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "got": "^11.8.6",
     "memoizee": "^0.4.14",
     "mysql2": "^3.6.5",

@@ -1,0 +1,258 @@
+const express = require('express');
+const dotenv = require('dotenv');
+const path = require('path');
+
+// Load environment variables
+if (process.env.NODE_ENV === 'production') {
+  dotenv.config({ path: path.join(__dirname, '.env.production') });
+} else {
+  dotenv.config();
+}
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Dynamic import untuk gplay (ES6 module)
+let gplay;
+
+async function initializeGplay() {
+  try {
+    gplay = await import('./index.js');
+    console.log('Google Play scraper module loaded successfully');
+  } catch (error) {
+    console.error('Failed to load gplay module:', error);
+  }
+}
+
+// Initialize gplay module
+initializeGplay();
+
+// Middleware
+app.use(express.json());
+
+// Enable CORS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  next();
+});
+
+// Middleware to check if gplay is loaded
+const checkGplay = (req, res, next) => {
+  if (!gplay) {
+    return res.status(503).json({ error: 'Google Play scraper module not loaded yet. Please try again.' });
+  }
+  next();
+};
+
+// Routes
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Google Play Games API',
+    version: '1.0.0',
+    status: gplay ? 'ready' : 'initializing',
+    endpoints: {
+      apps: '/api/apps/:appId',
+      developers: '/api/developers/:devId',
+      categories: '/api/categories',
+      search: '/api/search?term=xxx',
+      list: '/api/list?category=GAME&collection=TOP_FREE'
+    }
+  });
+});
+
+// Redirect /api to show available endpoints
+app.get('/api', (req, res) => {
+  const baseUrl = process.env.API_BASE_URL || `https://${req.get('host')}`;
+  res.json({
+    apps: `${baseUrl}/api/apps/com.whatsapp`,
+    search: `${baseUrl}/api/search?term=whatsapp`,
+    categories: `${baseUrl}/api/categories`,
+    list: `${baseUrl}/api/list`,
+    developers: `${baseUrl}/api/developers/5700313618786177705`
+  });
+});
+
+// Get app details
+app.get('/api/apps/:appId', checkGplay, async (req, res) => {
+  try {
+    const result = await gplay.default.app({ appId: req.params.appId });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching app:', error);
+    res.status(404).json({ error: error.message });
+  }
+});
+
+// Search apps
+app.get('/api/search', checkGplay, async (req, res) => {
+  try {
+    const { term, num = 30, price = 'all', country = 'us', lang = 'en' } = req.query;
+    
+    if (!term) {
+      return res.status(400).json({ error: 'Search term is required' });
+    }
+    
+    const result = await gplay.default.search({
+      term,
+      num: parseInt(num),
+      price: price === 'free' ? 'free' : price === 'paid' ? 'paid' : 'all',
+      country,
+      lang
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error searching apps:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// List apps by category/collection
+app.get('/api/list', checkGplay, async (req, res) => {
+  try {
+    const { 
+      category = 'GAME', 
+      collection = 'TOP_FREE',
+      num = 50,
+      country = 'us',
+      lang = 'en',
+      age
+    } = req.query;
+    
+    const options = {
+      category,
+      collection: gplay.default.collection[collection] || gplay.default.collection.TOP_FREE,
+      num: parseInt(num),
+      country,
+      lang
+    };
+    
+    if (age) options.age = parseInt(age);
+    
+    const result = await gplay.default.list(options);
+    res.json(result);
+  } catch (error) {
+    console.error('Error listing apps:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get developer apps
+app.get('/api/developers/:devId', checkGplay, async (req, res) => {
+  try {
+    const result = await gplay.default.developer({
+      devId: req.params.devId,
+      num: parseInt(req.query.num) || 60
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching developer apps:', error);
+    res.status(404).json({ error: error.message });
+  }
+});
+
+// Get similar apps
+app.get('/api/similar/:appId', checkGplay, async (req, res) => {
+  try {
+    const result = await gplay.default.similar({
+      appId: req.params.appId
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching similar apps:', error);
+    res.status(404).json({ error: error.message });
+  }
+});
+
+// Get app permissions
+app.get('/api/permissions/:appId', checkGplay, async (req, res) => {
+  try {
+    const result = await gplay.default.permissions({
+      appId: req.params.appId,
+      lang: req.query.lang || 'en'
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching permissions:', error);
+    res.status(404).json({ error: error.message });
+  }
+});
+
+// Get app reviews
+app.get('/api/reviews/:appId', checkGplay, async (req, res) => {
+  try {
+    const result = await gplay.default.reviews({
+      appId: req.params.appId,
+      sort: parseInt(req.query.sort) || gplay.default.sort.NEWEST,
+      num: parseInt(req.query.num) || 40,
+      lang: req.query.lang || 'en',
+      country: req.query.country || 'us'
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching reviews:', error);
+    res.status(404).json({ error: error.message });
+  }
+});
+
+// Categories endpoint
+app.get('/api/categories', checkGplay, (req, res) => {
+  try {
+    res.json({
+      categories: Object.keys(gplay.default.category).map(key => ({
+        id: key,
+        value: gplay.default.category[key]
+      })),
+      collections: Object.keys(gplay.default.collection).map(key => ({
+        id: key,
+        value: gplay.default.collection[key]
+      })),
+      sort: Object.keys(gplay.default.sort).map(key => ({
+        id: key,
+        value: gplay.default.sort[key]
+      })),
+      age: Object.keys(gplay.default.age).map(key => ({
+        id: key,
+        value: gplay.default.age[key]
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    gplayLoaded: !!gplay,
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// Start server
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 API available at: ${process.env.API_BASE_URL || `http://localhost:${PORT}`}`);
+  console.log(`📊 Health check: ${process.env.API_BASE_URL || `http://localhost:${PORT}`}/health`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  process.exit(0);
+});
+
+module.exports = app;

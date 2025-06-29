@@ -2,7 +2,7 @@
 module.exports = {
   apps: [{
     name: 'gplay-api',
-    script: './server.js',
+    script: './server-fixed.js',
     instances: 1,
     autorestart: true,
     watch: false,
