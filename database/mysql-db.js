@@ -394,7 +394,7 @@ class MySQLGameDatabase {
       
       // Cek data price terakhir
       const [lastPrice] = await connection.execute(
-        'SELECT price, currency, price_text FROM price_history WHERE game_id = ? ORDER BY created_at DESC LIMIT 1',
+        'SELECT price, currency, price_text FROM price_history WHERE game_id = ? ORDER BY record_date DESC LIMIT 1',
         [gameId]
       );
       
@@ -428,7 +428,7 @@ class MySQLGameDatabase {
       
       // Cek data rating terakhir
       const [lastRating] = await connection.execute(
-        'SELECT score, ratings, reviews, score_text FROM rating_history WHERE game_id = ? ORDER BY created_at DESC LIMIT 1',
+        'SELECT score, ratings, reviews, score_text FROM rating_history WHERE game_id = ? ORDER BY record_date DESC LIMIT 1',
         [gameId]
       );
       
@@ -462,7 +462,7 @@ class MySQLGameDatabase {
       
       // Cek data installs terakhir
       const [lastInstalls] = await connection.execute(
-        'SELECT min_installs, max_installs, installs_text FROM install_history WHERE game_id = ? ORDER BY created_at DESC LIMIT 1',
+        'SELECT min_installs, max_installs, installs_text FROM install_history WHERE game_id = ? ORDER BY record_date DESC LIMIT 1',
         [gameId]
       );
       
