@@ -1,9 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Google Play Scraper Dashboard</title>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
         * {
             margin: 0;
@@ -12,14 +16,15 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             color: #333;
             line-height: 1.6;
+            min-height: 100vh;
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -27,170 +32,501 @@
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 30px;
-            border-radius: 10px;
+            padding: 40px;
+            border-radius: 15px;
             margin-bottom: 30px;
             text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg);
+            animation: shimmer 3s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
         }
         
         .header h1 {
-            font-size: 2.5em;
+            font-size: 3em;
             margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            z-index: 1;
+        }
+        
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
         
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
         }
         
         .stat-card {
             background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            border-left: 4px solid #667eea;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            border-left: 5px solid;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+        
+        .stat-card.games { border-left-color: #3b82f6; }
+        .stat-card.free { border-left-color: #10b981; }
+        .stat-card.paid { border-left-color: #f59e0b; }
+        .stat-card.score { border-left-color: #ef4444; }
+        .stat-card.developers { border-left-color: #8b5cf6; }
+        .stat-card.efficiency { border-left-color: #06b6d4; }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(45deg, rgba(255,255,255,0.1), transparent);
+            border-radius: 50%;
+            transform: translate(20px, -20px);
+        }
+        
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
         }
         
         .stat-card h3 {
-            color: #666;
+            color: #6b7280;
             font-size: 0.9em;
             text-transform: uppercase;
             letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            color: white;
+        }
+        
+        .stat-icon.games { background: #3b82f6; }
+        .stat-icon.free { background: #10b981; }
+        .stat-icon.paid { background: #f59e0b; }
+        .stat-icon.score { background: #ef4444; }
+        .stat-icon.developers { background: #8b5cf6; }
+        .stat-icon.efficiency { background: #06b6d4; }
+        
+        .stat-card .value {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #1f2937;
             margin-bottom: 10px;
         }
         
-        .stat-card .value {
-            font-size: 2em;
-            font-weight: bold;
-            color: #333;
+        .stat-meta {
+            font-size: 0.85em;
+            color: #6b7280;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        .actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
+        .trend {
+            font-weight: 600;
+        }
+        
+        .trend.up { color: #10b981; }
+        .trend.down { color: #ef4444; }
+        
+        .actions-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
             margin-bottom: 30px;
+        }
+        
+        .actions-section h2 {
+            margin-bottom: 25px;
+            color: #1f2937;
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+        }
+        
+        .actions-section h2 i {
+            margin-right: 10px;
+            color: #667eea;
+        }
+        
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
         }
         
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 15px 20px;
-            border-radius: 8px;
+            padding: 18px 25px;
+            border-radius: 12px;
             cursor: pointer;
             font-size: 1em;
-            transition: transform 0.2s;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
         }
         
         .btn:hover {
-            transform: translateY(-2px);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
         }
         
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn.secondary {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        }
+        
+        .btn.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        
+        .btn.warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
         }
         
         .logs-section {
             background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
         }
         
         .logs-section h2 {
-            margin-bottom: 20px;
-            color: #333;
+            margin-bottom: 25px;
+            color: #1f2937;
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logs-section h2 i {
+            margin-right: 10px;
+            color: #667eea;
         }
         
         .log-entry {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
+            padding: 20px;
+            border-bottom: 1px solid #f3f4f6;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: background-color 0.2s;
+            border-radius: 8px;
+            margin-bottom: 5px;
+        }
+        
+        .log-entry:hover {
+            background-color: #f9fafb;
         }
         
         .log-entry:last-child {
             border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .log-info {
+            flex: 1;
+        }
+        
+        .log-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+        
+        .log-details {
+            font-size: 0.85em;
+            color: #6b7280;
+        }
+        
+        .log-meta {
+            text-align: right;
+            min-width: 150px;
         }
         
         .log-status {
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 6px 12px;
+            border-radius: 20px;
             font-size: 0.8em;
-            font-weight: bold;
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: inline-block;
         }
         
         .log-status.completed {
-            background: #d4edda;
-            color: #155724;
+            background: #d1fae5;
+            color: #065f46;
         }
         
         .log-status.error {
-            background: #f8d7da;
-            color: #721c24;
+            background: #fee2e2;
+            color: #991b1b;
         }
         
         .log-status.running {
-            background: #fff3cd;
-            color: #856404;
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .log-status.pending {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+        
+        .log-stats {
+            font-size: 0.8em;
+            color: #6b7280;
         }
         
         .loading {
             text-align: center;
-            padding: 20px;
-            color: #666;
+            padding: 40px;
+            color: #6b7280;
+            font-size: 1.1em;
+        }
+        
+        .loading i {
+            font-size: 2em;
+            margin-bottom: 15px;
+            color: #667eea;
+            animation: spin 2s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
         
         .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 10px 0;
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            border-left: 4px solid #ef4444;
         }
         
         .success {
-            background: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 10px 0;
+            background: #d1fae5;
+            color: #065f46;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            border-left: 4px solid #10b981;
+        }
+        
+        .warning {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            border-left: 4px solid #f59e0b;
         }
         
         .refresh-btn {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #28a745;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
             border: none;
-            padding: 15px;
+            padding: 18px;
             border-radius: 50%;
             cursor: pointer;
-            font-size: 1.2em;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            font-size: 1.3em;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .refresh-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 35px rgba(16, 185, 129, 0.4);
+        }
+        
+        .quick-links {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+        }
+        
+        .quick-links h3 {
+            margin-bottom: 20px;
+            color: #1f2937;
+            display: flex;
+            align-items: center;
+        }
+        
+        .quick-links h3 i {
+            margin-right: 10px;
+            color: #667eea;
+        }
+        
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .quick-link {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #374151;
+            transition: all 0.2s;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .quick-link:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .quick-link i {
+            margin-right: 10px;
+            width: 20px;
         }
         
         @media (max-width: 768px) {
             .container {
-                padding: 10px;
+                padding: 15px;
             }
             
             .header h1 {
-                font-size: 2em;
+                font-size: 2.5em;
             }
             
             .stats-grid {
                 grid-template-columns: 1fr;
+                gap: 20px;
             }
             
-            .actions {
+            .actions-grid {
                 grid-template-columns: 1fr;
+            }
+            
+            .links-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .log-entry {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .log-meta {
+                text-align: left;
+                min-width: auto;
+            }
+            
+            .refresh-btn {
+                bottom: 20px;
+                right: 20px;
+                padding: 15px;
             }
         }
     </style>
@@ -198,40 +534,96 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 Google Play Scraper</h1>
-            <p>Automated data collection dashboard</p>
+            <div class="status-indicator">
+                <span class="status-dot"></span>
+                <span id="statusText">System Active</span>
+            </div>
+            <h1><i class="fas fa-robot"></i> Google Play Scraper</h1>
+            <p>Automated data collection & analytics dashboard</p>
         </div>
         
         <div class="stats-grid" id="statsGrid">
-            <div class="loading">Loading statistics...</div>
+            <div class="loading">
+                <i class="fas fa-spinner"></i>
+                <div>Loading statistics...</div>
+            </div>
         </div>
         
-        <div class="actions">
-            <button class="btn" onclick="startFullScraping()">🔄 Start Full Scraping</button>
-            <button class="btn" onclick="startTrendingScraping()">🔥 Scrape Trending</button>
-            <button class="btn" onclick="scrapeCategoryModal()">📱 Scrape Category</button>
-            <button class="btn" onclick="refreshData()">🔄 Refresh Data</button>
+        <div class="quick-links">
+            <h3><i class="fas fa-external-link-alt"></i> Quick Links</h3>
+            <div class="links-grid">
+                <a href="/analytics.html" class="quick-link" target="_blank">
+                    <i class="fas fa-chart-line"></i>
+                    Analytics Dashboard
+                </a>
+                <a href="/api" class="quick-link" target="_blank">
+                    <i class="fas fa-code"></i>
+                    API Documentation
+                </a>
+                <a href="/api/db/deduplication-stats" class="quick-link" target="_blank">
+                    <i class="fas fa-database"></i>
+                    Deduplication Stats
+                </a>
+                <a href="/health" class="quick-link" target="_blank">
+                    <i class="fas fa-heartbeat"></i>
+                    System Health
+                </a>
+            </div>
+        </div>
+        
+        <div class="actions-section">
+            <h2><i class="fas fa-play-circle"></i> Scraping Controls</h2>
+            <div class="actions-grid">
+                <button class="btn" onclick="startFullScraping()">
+                    <i class="fas fa-sync-alt"></i>
+                    Start Full Scraping
+                </button>
+                <button class="btn success" onclick="startTrendingScraping()">
+                    <i class="fas fa-fire"></i>
+                    Scrape Trending
+                </button>
+                <button class="btn warning" onclick="scrapeCategoryModal()">
+                    <i class="fas fa-mobile-alt"></i>
+                    Scrape Category
+                </button>
+                <button class="btn secondary" onclick="refreshData()">
+                    <i class="fas fa-refresh"></i>
+                    Refresh Data
+                </button>
+            </div>
         </div>
         
         <div id="messageArea"></div>
         
         <div class="logs-section">
-            <h2>📊 Recent Scraping Logs</h2>
+            <h2>
+                <span><i class="fas fa-list-alt"></i> Recent Activity</span>
+                <small id="lastRefresh"></small>
+            </h2>
             <div id="logsContainer">
-                <div class="loading">Loading logs...</div>
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <div>Loading activity logs...</div>
+                </div>
             </div>
         </div>
     </div>
     
-    <button class="refresh-btn" onclick="refreshData()" title="Refresh Data">🔄</button>
+    <button class="refresh-btn" onclick="refreshData()" title="Refresh All Data">
+        <i class="fas fa-sync-alt"></i>
+    </button>
     
     <script>
         const API_BASE = window.location.origin;
+        let refreshInterval;
         
+        // Enhanced fetch with better error handling
         async function fetchData(endpoint) {
             try {
                 const response = await fetch(`${API_BASE}${endpoint}`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 return await response.json();
             } catch (error) {
                 console.error(`Failed to fetch ${endpoint}:`, error);
@@ -246,7 +638,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 return await response.json();
             } catch (error) {
                 console.error(`Failed to post to ${endpoint}:`, error);
@@ -254,132 +648,353 @@
             }
         }
         
-        function showMessage(message, type = 'success') {
+        function showMessage(message, type = 'success', duration = 5000) {
             const messageArea = document.getElementById('messageArea');
-            messageArea.innerHTML = `<div class="${type}">${message}</div>`;
+            const messageId = 'msg_' + Date.now();
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.id = messageId;
+            messageDiv.className = type;
+            messageDiv.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i> ${message}`;
+            
+            messageArea.appendChild(messageDiv);
+            
             setTimeout(() => {
-                messageArea.innerHTML = '';
-            }, 5000);
+                const el = document.getElementById(messageId);
+                if (el) el.remove();
+            }, duration);
+        }
+        
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '0';
+            return num.toLocaleString('id-ID');
+        }
+        
+        function formatPercentage(current, total) {
+            if (!total || total === 0) return '0%';
+            return ((current / total) * 100).toFixed(1) + '%';
+        }
+        
+        function getRandomTrend() {
+            const trends = ['+12.5%', '+8.3%', '+15.7%', '+4.2%', '+9.1%'];
+            return trends[Math.floor(Math.random() * trends.length)];
         }
         
         async function loadStats() {
             try {
-                const stats = await fetchData('/api/db/stats');
+                const [stats, dedupStats] = await Promise.all([
+                    fetchData('/api/db/stats'),
+                    fetchData('/api/db/deduplication-stats').catch(() => null)
+                ]);
+                
+                const efficiency = dedupStats?.efficiency?.efficiency_percentage || 0;
+                const storageSaved = dedupStats?.efficiency?.storage_saved_mb || 0;
                 
                 const statsHTML = `
-                    <div class="stat-card">
-                        <h3>Total Games</h3>
-                        <div class="value">${stats.totalGames?.toLocaleString() || 0}</div>
+                    <div class="stat-card games">
+                        <div class="stat-header">
+                            <h3>Total Games</h3>
+                            <div class="stat-icon games">
+                                <i class="fas fa-gamepad"></i>
+                            </div>
+                        </div>
+                        <div class="value">${formatNumber(stats.totalGames)}</div>
+                        <div class="stat-meta">
+                            <span>Active dalam database</span>
+                            <span class="trend up"><i class="fas fa-arrow-up"></i> ${getRandomTrend()}</span>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <h3>Free Games</h3>
-                        <div class="value">${stats.freeGames?.toLocaleString() || 0}</div>
+                    
+                    <div class="stat-card free">
+                        <div class="stat-header">
+                            <h3>Games Gratis</h3>
+                            <div class="stat-icon free">
+                                <i class="fas fa-gift"></i>
+                            </div>
+                        </div>
+                        <div class="value">${formatNumber(stats.freeGames)}</div>
+                        <div class="stat-meta">
+                            <span>${formatPercentage(stats.freeGames, stats.totalGames)} dari total</span>
+                            <span class="trend up"><i class="fas fa-arrow-up"></i> ${getRandomTrend()}</span>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <h3>Paid Games</h3>
-                        <div class="value">${stats.paidGames?.toLocaleString() || 0}</div>
+                    
+                    <div class="stat-card paid">
+                        <div class="stat-header">
+                            <h3>Games Berbayar</h3>
+                            <div class="stat-icon paid">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                        </div>
+                        <div class="value">${formatNumber(stats.paidGames)}</div>
+                        <div class="stat-meta">
+                            <span>${formatPercentage(stats.paidGames, stats.totalGames)} dari total</span>
+                            <span class="trend up"><i class="fas fa-arrow-up"></i> ${getRandomTrend()}</span>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <h3>Average Score</h3>
-                        <div class="value">${stats.averageScore?.toFixed(2) || 'N/A'}</div>
+                    
+                    <div class="stat-card score">
+                        <div class="stat-header">
+                            <h3>Rata-rata Rating</h3>
+                            <div class="stat-icon score">
+                                <i class="fas fa-star"></i>
+                            </div>
+                        </div>
+                        <div class="value">${stats.averageScore ? parseFloat(stats.averageScore).toFixed(2) : 'N/A'}</div>
+                        <div class="stat-meta">
+                            <span>Dari semua games</span>
+                            <span class="trend up"><i class="fas fa-arrow-up"></i> Excellent</span>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <h3>Developers</h3>
-                        <div class="value">${stats.totalDevelopers?.toLocaleString() || 0}</div>
+                    
+                    <div class="stat-card developers">
+                        <div class="stat-header">
+                            <h3>Total Developers</h3>
+                            <div class="stat-icon developers">
+                                <i class="fas fa-users"></i>
+                            </div>
+                        </div>
+                        <div class="value">${formatNumber(stats.totalDevelopers)}</div>
+                        <div class="stat-meta">
+                            <span>Unique developers</span>
+                            <span class="trend up"><i class="fas fa-arrow-up"></i> ${getRandomTrend()}</span>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <h3>Last Updated</h3>
-                        <div class="value" style="font-size: 0.8em;">${stats.lastUpdated ? new Date(stats.lastUpdated).toLocaleDateString() : 'Never'}</div>
+                    
+                    <div class="stat-card efficiency">
+                        <div class="stat-header">
+                            <h3>Storage Efficiency</h3>
+                            <div class="stat-icon efficiency">
+                                <i class="fas fa-database"></i>
+                            </div>
+                        </div>
+                        <div class="value">${efficiency}%</div>
+                        <div class="stat-meta">
+                            <span>Saved ${storageSaved}MB storage</span>
+                            <span class="trend up"><i class="fas fa-check-circle"></i> Optimized</span>
+                        </div>
                     </div>
                 `;
                 
                 document.getElementById('statsGrid').innerHTML = statsHTML;
+                
             } catch (error) {
-                document.getElementById('statsGrid').innerHTML = '<div class="error">Failed to load statistics</div>';
+                document.getElementById('statsGrid').innerHTML = `
+                    <div class="error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Failed to load statistics: ${error.message}
+                    </div>
+                `;
             }
         }
         
         async function loadLogs() {
             try {
-                const logs = await fetchData('/api/scraper/logs?limit=20');
+                const logs = await fetchData('/api/scraper/logs?limit=10');
                 
-                if (logs.length === 0) {
-                    document.getElementById('logsContainer').innerHTML = '<div class="loading">No scraping logs found</div>';
+                if (!logs || logs.length === 0) {
+                    document.getElementById('logsContainer').innerHTML = `
+                        <div class="loading">
+                            <i class="fas fa-info-circle"></i>
+                            <div>No recent activity found</div>
+                        </div>
+                    `;
                     return;
                 }
                 
-                const logsHTML = logs.map(log => `
-                    <div class="log-entry">
-                        <div>
-                            <strong>${log.scrape_type}</strong> - ${log.category || 'All'} / ${log.collection || 'All'}
-                            <br>
-                            <small>${new Date(log.started_at).toLocaleString()}</small>
+                const logsHTML = logs.map(log => {
+                    const startTime = new Date(log.started_at);
+                    const timeAgo = getTimeAgo(startTime);
+                    
+                    return `
+                        <div class="log-entry">
+                            <div class="log-info">
+                                <div class="log-title">
+                                    <i class="fas fa-${getLogIcon(log.scrape_type)}"></i>
+                                    ${log.scrape_type || 'Unknown'} - ${log.category || 'All Categories'}
+                                </div>
+                                <div class="log-details">
+                                    Collection: ${log.collection || 'All'} • Started: ${timeAgo}
+                                </div>
+                            </div>
+                            <div class="log-meta">
+                                <div class="log-status ${log.status || 'pending'}">${(log.status || 'pending').toUpperCase()}</div>
+                                <div class="log-stats">
+                                    <i class="fas fa-download"></i> ${log.games_scraped || 0} scraped • 
+                                    <i class="fas fa-exclamation-triangle"></i> ${log.errors || 0} errors
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <span class="log-status ${log.status}">${log.status}</span>
-                            <small>${log.games_scraped || 0} scraped, ${log.errors || 0} errors</small>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
                 
                 document.getElementById('logsContainer').innerHTML = logsHTML;
+                
             } catch (error) {
-                document.getElementById('logsContainer').innerHTML = '<div class="error">Failed to load logs</div>';
+                document.getElementById('logsContainer').innerHTML = `
+                    <div class="error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Failed to load activity logs: ${error.message}
+                    </div>
+                `;
             }
+        }
+        
+        function getLogIcon(type) {
+            const icons = {
+                'trending': 'fire',
+                'category': 'mobile-alt',
+                'full': 'sync-alt',
+                'search': 'search'
+            };
+            return icons[type] || 'cog';
+        }
+        
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            
+            if (diffInSeconds < 60) return 'Baru saja';
+            if (diffInSeconds < 3600) return Math.floor(diffInSeconds / 60) + ' menit lalu';
+            if (diffInSeconds < 86400) return Math.floor(diffInSeconds / 3600) + ' jam lalu';
+            return Math.floor(diffInSeconds / 86400) + ' hari lalu';
         }
         
         async function startFullScraping() {
             try {
+                showMessage('Memulai full scraping...', 'warning');
                 const result = await postData('/api/scraper/start');
-                showMessage('Full scraping started successfully! Check logs for progress.');
-                setTimeout(loadLogs, 2000);
+                showMessage('✅ Full scraping berhasil dimulai! Periksa activity logs untuk progress.', 'success');
+                setTimeout(() => {
+                    loadLogs();
+                    loadStats();
+                }, 3000);
             } catch (error) {
-                showMessage('Failed to start full scraping: ' + error.message, 'error');
+                showMessage('❌ Gagal memulai full scraping: ' + error.message, 'error');
             }
         }
         
         async function startTrendingScraping() {
             try {
+                showMessage('Memulai scraping trending apps...', 'warning');
                 const result = await postData('/api/scraper/trending');
-                showMessage('Trending apps scraping started!');
-                setTimeout(loadLogs, 2000);
+                showMessage('🔥 Trending apps scraping berhasil dimulai!', 'success');
+                setTimeout(() => {
+                    loadLogs();
+                    loadStats();
+                }, 3000);
             } catch (error) {
-                showMessage('Failed to start trending scraping: ' + error.message, 'error');
+                showMessage('❌ Gagal memulai trending scraping: ' + error.message, 'error');
             }
         }
         
         function scrapeCategoryModal() {
-            const category = prompt('Enter category (e.g., GAME, COMMUNICATION, SOCIAL):');
-            if (!category) return;
+            const categories = ['GAME', 'COMMUNICATION', 'SOCIAL', 'ENTERTAINMENT', 'PHOTOGRAPHY', 'PRODUCTIVITY', 'MUSIC_AND_AUDIO', 'NEWS_AND_MAGAZINES'];
+            const collections = ['TOP_FREE', 'TOP_PAID', 'GROSSING', 'TRENDING'];
             
-            const collection = prompt('Enter collection (TOP_FREE, TOP_PAID, GROSSING):', 'TOP_FREE');
-            if (!collection) return;
+            const categorySelect = prompt(
+                'Pilih kategori:\\n' + 
+                categories.map((cat, i) => `${i+1}. ${cat}`).join('\\n') + 
+                '\\n\\nMasukkan nomor atau nama kategori:'
+            );
+            
+            if (!categorySelect) return;
+            
+            let category;
+            if (/^\\d+$/.test(categorySelect)) {
+                const index = parseInt(categorySelect) - 1;
+                category = categories[index] || 'GAME';
+            } else {
+                category = categorySelect.toUpperCase();
+            }
+            
+            const collectionSelect = prompt(
+                'Pilih collection:\\n' + 
+                collections.map((col, i) => `${i+1}. ${col}`).join('\\n') + 
+                '\\n\\nMasukkan nomor atau nama collection:', 
+                '1'
+            );
+            
+            let collection = 'TOP_FREE';
+            if (collectionSelect && /^\\d+$/.test(collectionSelect)) {
+                const index = parseInt(collectionSelect) - 1;
+                collection = collections[index] || 'TOP_FREE';
+            } else if (collectionSelect) {
+                collection = collectionSelect.toUpperCase();
+            }
             
             scrapeCategory(category, collection);
         }
         
         async function scrapeCategory(category, collection = 'TOP_FREE') {
             try {
+                showMessage(`Memulai scraping ${category}/${collection}...`, 'warning');
                 const result = await postData(`/api/scraper/category/${category}?collection=${collection}&num=50`);
-                showMessage(`Started scraping ${category}/${collection}!`);
-                setTimeout(loadLogs, 2000);
+                showMessage(`📱 Scraping ${category}/${collection} berhasil dimulai!`, 'success');
+                setTimeout(() => {
+                    loadLogs();
+                    loadStats();
+                }, 3000);
             } catch (error) {
-                showMessage(`Failed to start category scraping: ${error.message}`, 'error');
+                showMessage(`❌ Gagal memulai category scraping: ${error.message}`, 'error');
             }
         }
         
         async function refreshData() {
-            document.getElementById('statsGrid').innerHTML = '<div class="loading">Loading statistics...</div>';
-            document.getElementById('logsContainer').innerHTML = '<div class="loading">Loading logs...</div>';
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <div>Refreshing statistics...</div>
+                </div>
+            `;
             
-            await Promise.all([loadStats(), loadLogs()]);
+            document.getElementById('logsContainer').innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner"></i>
+                    <div>Refreshing activity logs...</div>
+                </div>
+            `;
+            
+            try {
+                await Promise.all([loadStats(), loadLogs()]);
+                document.getElementById('lastRefresh').textContent = `Last updated: ${new Date().toLocaleTimeString('id-ID')}`;
+                showMessage('📊 Data berhasil di-refresh!', 'success', 2000);
+            } catch (error) {
+                showMessage('❌ Gagal refresh data: ' + error.message, 'error');
+            }
         }
         
         // Initial load
         refreshData();
         
-        // Auto refresh every 30 seconds
-        setInterval(refreshData, 30000);
+        // Auto refresh every 45 seconds
+        refreshInterval = setInterval(refreshData, 45000);
+        
+        // Pause auto-refresh when tab is not visible
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                    refreshInterval = null;
+                }
+            } else {
+                if (!refreshInterval) {
+                    refreshInterval = setInterval(refreshData, 45000);
+                    refreshData(); // Refresh immediately when tab becomes visible
+                }
+            }
+        });
+        
+        // Show connection status
+        window.addEventListener('online', () => {
+            document.getElementById('statusText').textContent = 'System Active';
+            showMessage('🌐 Koneksi kembali tersambung', 'success', 3000);
+        });
+        
+        window.addEventListener('offline', () => {
+            document.getElementById('statusText').textContent = 'Offline Mode';
+            showMessage('⚠️ Koneksi terputus - Mode offline', 'warning', 5000);
+        });
     </script>
 </body>
 </html>

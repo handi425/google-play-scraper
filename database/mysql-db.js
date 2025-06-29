@@ -81,11 +81,14 @@ class MySQLGameDatabase {
   }
 
   // Insert atau update developer
-  async upsertDeveloper(developerName, developerId, email = null, website = null) {
+  async upsertDeveloper(developerName, developerId, email = null, website = null, connection = null) {
     if (!developerName) return null;
 
+    // Use provided connection or fall back to pool
+    const executor = connection || this.pool;
+
     try {
-      const [rows] = await this.pool.execute(
+      const [rows] = await executor.execute(
         'SELECT id FROM developers WHERE name = ?',
         [developerName]
       );
@@ -94,7 +97,7 @@ class MySQLGameDatabase {
         return rows[0].id;
       }
 
-      const [result] = await this.pool.execute(
+      const [result] = await executor.execute(
         'INSERT INTO developers (name, developer_id, email, website) VALUES (?, ?, ?, ?)',
         [developerName, developerId, email, website]
       );
@@ -107,9 +110,12 @@ class MySQLGameDatabase {
   }
 
   // Get category ID
-  async getCategoryId(categoryId) {
+  async getCategoryId(categoryId, connection = null) {
+    // Use provided connection or fall back to pool
+    const executor = connection || this.pool;
+
     try {
-      const [rows] = await this.pool.execute(
+      const [rows] = await executor.execute(
         'SELECT id FROM categories WHERE category_id = ?',
         [categoryId]
       );
@@ -156,10 +162,11 @@ class MySQLGameDatabase {
         gameData.developer,
         gameData.developerId,
         gameData.developerEmail,
-        gameData.developerWebsite
+        gameData.developerWebsite,
+        connection
       );
 
-      const categoryId = await this.getCategoryId(gameData.genreId || 'GAME');
+      const categoryId = await this.getCategoryId(gameData.genreId || 'GAME', connection);
       const dataHash = this.generateDataHash(gameData);
       const descriptionHash = this.generateDescriptionHash(gameData.description);
 
@@ -245,10 +252,11 @@ class MySQLGameDatabase {
         gameData.developer,
         gameData.developerId,
         gameData.developerEmail,
-        gameData.developerWebsite
+        gameData.developerWebsite,
+        connection
       );
 
-      const categoryId = await this.getCategoryId(gameData.genreId || 'GAME');
+      const categoryId = await this.getCategoryId(gameData.genreId || 'GAME', connection);
       const dataHash = this.generateDataHash(gameData);
       const descriptionHash = this.generateDescriptionHash(gameData.description);
 
@@ -314,47 +322,169 @@ class MySQLGameDatabase {
     }
   }
 
-  // Track perubahan spesifik
+  // Track perubahan spesifik dengan enhanced validation
   async trackChanges(gameId, oldData, newData, connection) {
     const fieldsToTrack = ['score', 'ratings', 'reviews', 'price', 'version', 'available'];
     
+    // Enhanced value normalization untuk comparison yang akurat
+    const normalizeForComparison = (value) => {
+      if (value === undefined || value === null || value === '') return null;
+      if (typeof value === 'number') return parseFloat(value);
+      if (typeof value === 'string') {
+        // Handle string numbers
+        const num = parseFloat(value);
+        if (!isNaN(num)) return num;
+        return value.trim();
+      }
+      return value;
+    };
+    
     for (const field of fieldsToTrack) {
-      if (oldData[field] !== newData[field]) {
+      const oldValue = normalizeForComparison(oldData[field]);
+      const newValue = normalizeForComparison(newData[field]);
+      
+      // Only track meaningful changes (bukan hanya !== tapi juga handle edge cases)
+      const hasChanged = (() => {
+        if (oldValue === newValue) return false;
+        
+        // Handle null vs 0 vs undefined
+        if ((oldValue === null || oldValue === undefined) && 
+            (newValue === null || newValue === undefined)) return false;
+            
+        // Handle numeric precision (contoh: 4.50 vs 4.5)
+        if (typeof oldValue === 'number' && typeof newValue === 'number') {
+          return Math.abs(oldValue - newValue) > 0.001; // Threshold untuk floating point
+        }
+        
+        // Handle string case sensitivity
+        if (typeof oldValue === 'string' && typeof newValue === 'string') {
+          return oldValue.toLowerCase() !== newValue.toLowerCase();
+        }
+        
+        return true; // Default: ada perubahan
+      })();
+      
+      if (hasChanged) {
         await connection.execute(
           'INSERT INTO game_changes (game_id, field_name, old_value, new_value) VALUES (?, ?, ?, ?)',
-          [gameId, field, String(oldData[field] || ''), String(newData[field] || '')]
+          [gameId, field, String(oldValue || ''), String(newValue || '')]
         );
+        console.log(`🔄 Change tracked for game ${gameId}: ${field} changed from "${oldValue}" to "${newValue}"`);
       }
     }
   }
 
-  // Simpan data historis
+  // Simpan data historis dengan smart deduplication
   async saveHistoricalData(gameId, gameData, connection) {
     // Helper function to convert undefined to null
     const toNull = (value) => value === undefined ? null : value;
     
-    // Simpan history harga jika ada
+    // Normalize values untuk comparison yang akurat
+    const normalizeValue = (value) => {
+      if (value === undefined || value === null || value === '') return null;
+      if (typeof value === 'number') return parseFloat(value);
+      return value;
+    };
+    
+    // Simpan history harga jika ada DAN berbeda dari terakhir
     if (gameData.price !== undefined) {
-      await connection.execute(
-        'INSERT INTO price_history (game_id, price, currency, price_text, original_price) VALUES (?, ?, ?, ?, ?)',
-        [gameId, toNull(gameData.price), toNull(gameData.currency), toNull(gameData.priceText), toNull(gameData.originalPrice)]
+      const currentPrice = normalizeValue(gameData.price);
+      const currentCurrency = toNull(gameData.currency);
+      const currentPriceText = toNull(gameData.priceText);
+      
+      // Cek data price terakhir
+      const [lastPrice] = await connection.execute(
+        'SELECT price, currency, price_text FROM price_history WHERE game_id = ? ORDER BY created_at DESC LIMIT 1',
+        [gameId]
       );
+      
+      let shouldSavePrice = true;
+      if (lastPrice.length > 0) {
+        const lastPriceData = lastPrice[0];
+        shouldSavePrice = !(
+          normalizeValue(lastPriceData.price) === currentPrice &&
+          lastPriceData.currency === currentCurrency &&
+          lastPriceData.price_text === currentPriceText
+        );
+      }
+      
+      if (shouldSavePrice) {
+        await connection.execute(
+          'INSERT INTO price_history (game_id, price, currency, price_text, original_price) VALUES (?, ?, ?, ?, ?)',
+          [gameId, currentPrice, currentCurrency, currentPriceText, toNull(gameData.originalPrice)]
+        );
+        console.log(`💰 Price history saved for game ${gameId}: ${currentPrice} ${currentCurrency}`);
+      } else {
+        console.log(`⏭️  Price unchanged for game ${gameId}, skipping duplicate`);
+      }
     }
 
-    // Simpan history rating
+    // Simpan history rating jika ada DAN berbeda dari terakhir
     if (gameData.score !== undefined) {
-      await connection.execute(
-        'INSERT INTO rating_history (game_id, score, score_text, ratings, reviews) VALUES (?, ?, ?, ?, ?)',
-        [gameId, toNull(gameData.score), toNull(gameData.scoreText), toNull(gameData.ratings), toNull(gameData.reviews)]
+      const currentScore = normalizeValue(gameData.score);
+      const currentRatings = normalizeValue(gameData.ratings);
+      const currentReviews = normalizeValue(gameData.reviews);
+      const currentScoreText = toNull(gameData.scoreText);
+      
+      // Cek data rating terakhir
+      const [lastRating] = await connection.execute(
+        'SELECT score, ratings, reviews, score_text FROM rating_history WHERE game_id = ? ORDER BY created_at DESC LIMIT 1',
+        [gameId]
       );
+      
+      let shouldSaveRating = true;
+      if (lastRating.length > 0) {
+        const lastRatingData = lastRating[0];
+        shouldSaveRating = !(
+          normalizeValue(lastRatingData.score) === currentScore &&
+          normalizeValue(lastRatingData.ratings) === currentRatings &&
+          normalizeValue(lastRatingData.reviews) === currentReviews &&
+          lastRatingData.score_text === currentScoreText
+        );
+      }
+      
+      if (shouldSaveRating) {
+        await connection.execute(
+          'INSERT INTO rating_history (game_id, score, score_text, ratings, reviews) VALUES (?, ?, ?, ?, ?)',
+          [gameId, currentScore, currentScoreText, currentRatings, currentReviews]
+        );
+        console.log(`⭐ Rating history saved for game ${gameId}: ${currentScore} (${currentRatings} ratings, ${currentReviews} reviews)`);
+      } else {
+        console.log(`⏭️  Rating unchanged for game ${gameId}, skipping duplicate`);
+      }
     }
 
-    // Simpan history installs
+    // Simpan history installs jika ada DAN berbeda dari terakhir
     if (gameData.minInstalls !== undefined) {
-      await connection.execute(
-        'INSERT INTO install_history (game_id, min_installs, max_installs, installs_text) VALUES (?, ?, ?, ?)',
-        [gameId, toNull(gameData.minInstalls), toNull(gameData.maxInstalls), toNull(gameData.installs)]
+      const currentMinInstalls = normalizeValue(gameData.minInstalls);
+      const currentMaxInstalls = normalizeValue(gameData.maxInstalls);
+      const currentInstallsText = toNull(gameData.installs);
+      
+      // Cek data installs terakhir
+      const [lastInstalls] = await connection.execute(
+        'SELECT min_installs, max_installs, installs_text FROM install_history WHERE game_id = ? ORDER BY created_at DESC LIMIT 1',
+        [gameId]
       );
+      
+      let shouldSaveInstalls = true;
+      if (lastInstalls.length > 0) {
+        const lastInstallsData = lastInstalls[0];
+        shouldSaveInstalls = !(
+          normalizeValue(lastInstallsData.min_installs) === currentMinInstalls &&
+          normalizeValue(lastInstallsData.max_installs) === currentMaxInstalls &&
+          lastInstallsData.installs_text === currentInstallsText
+        );
+      }
+      
+      if (shouldSaveInstalls) {
+        await connection.execute(
+          'INSERT INTO install_history (game_id, min_installs, max_installs, installs_text) VALUES (?, ?, ?, ?)',
+          [gameId, currentMinInstalls, currentMaxInstalls, currentInstallsText]
+        );
+        console.log(`📦 Install history saved for game ${gameId}: ${currentMinInstalls}-${currentMaxInstalls} (${currentInstallsText})`);
+      } else {
+        console.log(`⏭️  Install count unchanged for game ${gameId}, skipping duplicate`);
+      }
     }
   }
 
@@ -447,6 +577,80 @@ class MySQLGameDatabase {
     stats.lastUpdated = lastUpdate[0].last_update;
     
     return stats;
+  }
+
+  // Get deduplication statistics untuk monitoring
+  async getDeduplicationStats() {
+    try {
+      const stats = {};
+      
+      // Count total entries dan unique values per table
+      const [priceStats] = await this.pool.execute(`
+        SELECT 
+          COUNT(*) as total_entries,
+          COUNT(DISTINCT CONCAT(game_id, '-', price, '-', currency)) as unique_combinations,
+          COUNT(*) - COUNT(DISTINCT CONCAT(game_id, '-', price, '-', currency)) as potential_duplicates_saved
+        FROM price_history
+      `);
+      stats.price_history = priceStats[0];
+      
+      const [ratingStats] = await this.pool.execute(`
+        SELECT 
+          COUNT(*) as total_entries,
+          COUNT(DISTINCT CONCAT(game_id, '-', score, '-', ratings, '-', reviews)) as unique_combinations,
+          COUNT(*) - COUNT(DISTINCT CONCAT(game_id, '-', score, '-', ratings, '-', reviews)) as potential_duplicates_saved
+        FROM rating_history
+      `);
+      stats.rating_history = ratingStats[0];
+      
+      const [installStats] = await this.pool.execute(`
+        SELECT 
+          COUNT(*) as total_entries,
+          COUNT(DISTINCT CONCAT(game_id, '-', min_installs, '-', max_installs)) as unique_combinations,
+          COUNT(*) - COUNT(DISTINCT CONCAT(game_id, '-', min_installs, '-', max_installs)) as potential_duplicates_saved
+        FROM install_history
+      `);
+      stats.install_history = installStats[0];
+      
+      const [changeStats] = await this.pool.execute(`
+        SELECT 
+          COUNT(*) as total_changes,
+          COUNT(DISTINCT field_name) as fields_tracked,
+          field_name,
+          COUNT(*) as change_count
+        FROM game_changes 
+        GROUP BY field_name
+        ORDER BY change_count DESC
+      `);
+      stats.game_changes = {
+        total: changeStats.reduce((sum, row) => sum + row.change_count, 0),
+        by_field: changeStats
+      };
+      
+      // Calculate efficiency metrics
+      const totalPotentialDuplicates = 
+        (stats.price_history.potential_duplicates_saved || 0) +
+        (stats.rating_history.potential_duplicates_saved || 0) +
+        (stats.install_history.potential_duplicates_saved || 0);
+        
+      const totalEntries = 
+        (stats.price_history.total_entries || 0) +
+        (stats.rating_history.total_entries || 0) +
+        (stats.install_history.total_entries || 0);
+      
+      stats.efficiency = {
+        total_entries: totalEntries,
+        potential_duplicates_prevented: totalPotentialDuplicates,
+        efficiency_percentage: totalEntries > 0 ? 
+          Math.round((totalPotentialDuplicates / (totalEntries + totalPotentialDuplicates)) * 100) : 0,
+        storage_saved_mb: Math.round((totalPotentialDuplicates * 0.5) / 1024) // Estimasi 0.5KB per entry
+      };
+      
+      return stats;
+    } catch (error) {
+      console.error('Error getting deduplication stats:', error);
+      return { error: error.message };
+    }
   }
 
   async close() {

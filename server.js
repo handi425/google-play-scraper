@@ -484,6 +484,26 @@ app.get('/api/scraper/logs', async (req, res) => {
   }
 });
 
+// Deduplication monitoring endpoint
+app.get('/api/db/deduplication-stats', async (req, res) => {
+  try {
+    const { default: DatabaseFactory } = await import('./database/db-factory.js');
+    const db = await DatabaseFactory.create();
+    
+    const stats = await db.getDeduplicationStats();
+    await db.close();
+    
+    res.json({
+      message: 'Smart deduplication system statistics',
+      timestamp: new Date().toISOString(),
+      ...stats
+    });
+  } catch (error) {
+    console.error('Error getting deduplication stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
