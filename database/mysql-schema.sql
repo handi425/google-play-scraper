@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS games (
     price DECIMAL(10, 2) DEFAULT 0,
     currency VARCHAR(10),
     price_text VARCHAR(50),
-    score DECIMAL(3, 2),
+    score DECIMAL(4, 2),
     score_text VARCHAR(50),
     ratings INT DEFAULT 0,
     reviews INT DEFAULT 0,
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS price_history (
 CREATE TABLE IF NOT EXISTS rating_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     game_id INT NOT NULL,
-    score DECIMAL(3, 2),
+    score DECIMAL(4, 2),
     score_text VARCHAR(50),
     ratings INT,
     reviews INT,

@@ -12,7 +12,10 @@ if (process.env.NODE_ENV === 'production') {
 class DatabaseFactory {
   static async create(type = null) {
     // Determine database type
-    const dbType = type || process.env.DB_TYPE || (process.env.NODE_ENV === 'production' ? 'mysql' : 'sqlite');
+    // Force MySQL if running on CloudPanel (port 3001 or tazen-aso directory)
+    const isCloudPanel = process.env.PORT === '3001' || process.cwd().includes('/home/tazen-aso/');
+    const dbType = type || process.env.DB_TYPE || 
+                  (process.env.NODE_ENV === 'production' || isCloudPanel ? 'mysql' : 'sqlite');
     
     let db;
     

@@ -3,10 +3,19 @@ const dotenv = require('dotenv');
 const path = require('path');
 
 // Load environment variables
-if (process.env.NODE_ENV === 'production') {
+// Auto-detect production environment based on domain
+const isProduction = process.env.NODE_ENV === 'production' || 
+                    process.env.PORT === '3001' || 
+                    (typeof window !== 'undefined' && window.location && window.location.hostname === 'aso.tazen.id') ||
+                    process.cwd().includes('/home/tazen-aso/');
+
+if (isProduction) {
+  process.env.NODE_ENV = 'production';
   dotenv.config({ path: path.join(__dirname, '.env.production') });
+  console.log('🌐 Auto-detected PRODUCTION environment - using MySQL CloudPanel database');
 } else {
   dotenv.config();
+  console.log('🔧 Development environment - using SQLite database');
 }
 
 const app = express();
@@ -243,8 +252,112 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     gplayLoaded: !!gplay,
     port: PORT,
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    isCloudPanel: process.env.PORT === '3001' || process.cwd().includes('/home/tazen-aso/'),
+    currentDirectory: process.cwd()
   });
+});
+
+// Test single app save to database
+app.post('/api/test/save-app/:appId', checkGplay, async (req, res) => {
+  try {
+    const appId = req.params.appId;
+    console.log(`Testing app save for: ${appId}`);
+    
+    // Get app details
+    const appData = await gplay.default.app({ appId });
+    console.log(`✅ App data retrieved: ${appData.title}`);
+    
+    // Save to database
+    const { default: DatabaseFactory } = await import('./database/db-factory.js');
+    const db = await DatabaseFactory.create();
+    console.log('✅ Database connected');
+    
+    const result = await db.processGameData(appData);
+    console.log(`✅ App saved with ID: ${result}`);
+    
+    await db.close();
+    
+    res.json({
+      success: true,
+      appId,
+      title: appData.title,
+      gameId: result,
+      message: 'App saved successfully to database'
+    });
+    
+  } catch (error) {
+    console.error('❌ Test save error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message,
+      stack: error.stack 
+    });
+  }
+});
+
+// Database migration endpoint
+app.post('/api/db/migrate', async (req, res) => {
+  try {
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    // Read MySQL schema
+    const schemaPath = path.join(__dirname, 'database', 'mysql-schema.sql');
+    const schema = await fs.readFile(schemaPath, 'utf8');
+    
+    // Get MySQL connection
+    const { default: DatabaseFactory } = await import('./database/db-factory.js');
+    const db = await DatabaseFactory.create('mysql'); // Force MySQL
+    
+    // Split schema into individual statements
+    const statements = schema.split(';').filter(stmt => stmt.trim().length > 0);
+    
+    let executed = 0;
+    for (const statement of statements) {
+      try {
+        await db.pool.execute(statement.trim());
+        executed++;
+      } catch (error) {
+        console.log(`Statement skipped (likely already exists): ${error.message.substring(0, 100)}`);
+      }
+    }
+    
+    await db.close();
+    
+    res.json({
+      message: 'Database migration completed',
+      executed: executed,
+      total: statements.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Fix database schema issues
+app.post('/api/db/fix-schema', async (req, res) => {
+  try {
+    const { default: DatabaseFactory } = await import('./database/db-factory.js');
+    const db = await DatabaseFactory.create('mysql');
+    
+    // Fix score column precision
+    await db.pool.execute('ALTER TABLE games MODIFY score DECIMAL(4,2)');
+    await db.pool.execute('ALTER TABLE rating_history MODIFY score DECIMAL(4,2)');
+    
+    await db.close();
+    
+    res.json({
+      message: 'Schema fixes applied successfully',
+      fixes: ['score column precision updated to DECIMAL(4,2)'],
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Schema fix error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Database endpoints - moved earlier for better organization

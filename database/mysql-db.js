@@ -163,6 +163,16 @@ class MySQLGameDatabase {
       const dataHash = this.generateDataHash(gameData);
       const descriptionHash = this.generateDescriptionHash(gameData.description);
 
+      // Format data untuk MySQL
+      const releasedDate = gameData.released ? 
+        (gameData.released instanceof Date ? 
+          gameData.released.toISOString().split('T')[0] : 
+          new Date(gameData.released).toISOString().split('T')[0]
+        ) : null;
+      
+      const score = gameData.score ? Math.min(parseFloat(gameData.score), 9.99) : null;
+      const price = gameData.price ? parseFloat(gameData.price) : 0;
+
       const [result] = await connection.execute(`
         INSERT INTO games (
           app_id, title, developer_id, category_id, genre, summary,
@@ -177,11 +187,11 @@ class MySQLGameDatabase {
       `, [
         gameData.appId, gameData.title, developerId, categoryId, gameData.genre,
         gameData.summary, descriptionHash, gameData.icon, gameData.headerImage,
-        gameData.video, gameData.contentRating, gameData.free, gameData.price,
-        gameData.currency, gameData.priceText, gameData.score, gameData.scoreText,
+        gameData.video, gameData.contentRating, gameData.free, price,
+        gameData.currency, gameData.priceText, score, gameData.scoreText,
         gameData.ratings, gameData.reviews, gameData.installs, gameData.minInstalls,
         gameData.maxInstalls, gameData.androidVersion, gameData.version,
-        gameData.released, gameData.updated, gameData.offersIAP, gameData.IAPRange,
+        releasedDate, gameData.updated, gameData.offersIAP, gameData.IAPRange,
         gameData.adSupported, gameData.available, gameData.preregister,
         gameData.earlyAccessEnabled, gameData.isAvailableInPlayPass, dataHash
       ]);
